@@ -3,71 +3,75 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import random
 import string
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "8838766761:AAGk4quvFD3qRzlZBQ3HxR-3qtFLuZt0nVs”
 
-# User data
 users = {}
 
-# Generate captcha
+TOTAL_CAPTCHAS = 20000000
+
+
 def generate_captcha():
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choice(chars) for _ in range(6))
 
-# Keyboard buttons
-buttons = [
+
+keyboard = [
     ["Next"],
-    ["Withdraw"],
-    ["Vault"]
+    ["Vault"],
+    ["Withdraw"]
 ]
 
-reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# Start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
 
-    if user_id not in users:
-        users[user_id] = {
-            "balance": 0.0,
-            "captcha": ""
-        }
-
+async def send_captcha(update, user_id):
     captcha = generate_captcha()
-    users[user_id]["captcha"] = captcha
 
-    image_url = f"https://dummyimage.com/400x200/000/fff&text={captcha}"
+    users[user_id]["captcha"] = captcha
+    users[user_id]["count"] += 1
+
+    image_url = f"https://dummyimage.com/500x250/000/fff&text={captcha}"
 
     await update.message.reply_photo(
         photo=image_url,
-        caption="Solve this captcha",
+        caption=(
+            f"🔐 CAPTCHA TASK\n\n"
+            f"Captcha {users[user_id]['count']} / {TOTAL_CAPTCHAS}\n\n"
+            f"Solve this captcha"
+        ),
         reply_markup=reply_markup
     )
 
-# Message handler
-async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    users[user_id] = {
+        "balance": 0.0,
+        "captcha": "",
+        "count": 0
+    }
+
+    await send_captcha(update, user_id)
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.upper()
 
     if user_id not in users:
         users[user_id] = {
             "balance": 0.0,
-            "captcha": ""
+            "captcha": "",
+            "count": 0
         }
 
-    # NEXT button
+    # NEXT
     if text == "NEXT":
-        captcha = generate_captcha()
-        users[user_id]["captcha"] = captcha
-
-        image_url = f"https://dummyimage.com/400x200/000/fff&text={captcha}"
-
-        await update.message.reply_photo(
-            photo=image_url,
-            caption="New captcha"
-        )
+        await send_captcha(update, user_id)
         return
 
-    # VAULT button
+    # VAULT
     if text == "VAULT":
         bal = users[user_id]["balance"]
 
@@ -76,7 +80,7 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # WITHDRAW button
+    # WITHDRAW
     if text == "WITHDRAW":
         bal = users[user_id]["balance"]
 
@@ -86,43 +90,36 @@ async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await update.message.reply_text(
-                f"✅ Withdrawal Requested\n\nYour balance: ₹{bal:.2f}"
+                f"✅ Withdrawal Request Sent\n\nYour Balance: ₹{bal:.2f}"
             )
         return
 
-    # Captcha checking
+    # CAPTCHA CHECK
     correct = users[user_id]["captcha"]
 
     if text == correct:
         users[user_id]["balance"] += 0.05
 
-        new_balance = users[user_id]["balance"]
-
         await update.message.reply_text(
-            f"✅ Correct\n\n₹0.05 Added\nBalance: ₹{new_balance:.2f}"
+            f"✅ Correct\n\n"
+            f"₹0.05 Added\n"
+            f"Balance: ₹{users[user_id]['balance']:.2f}"
         )
 
-        # Auto next captcha
-        captcha = generate_captcha()
-        users[user_id]["captcha"] = captcha
-
-        image_url = f"https://dummyimage.com/400x200/000/fff&text={captcha}"
-
-        await update.message.reply_photo(
-            photo=image_url,
-            caption="Next captcha"
-        )
+        await send_captcha(update, user_id)
 
     else:
-        await update.message.reply_text("❌ Wrong captcha")
+        await update.message.reply_text(
+            "❌ Wrong Captcha"
+        )
 
-# Main
+
 app = Application.builder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("Bot running...")
+print("Bot Running...")
 app.run_polling()
 
 
