@@ -1,93 +1,142 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import random
+import string
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-TOKEN = "8838766761:AAGk4quvFD3qRzlZBQ3HxR-3qtFLuZt0nVs"
-ADMIN_ID = 1282253529
+BOT_TOKEN = "8838766761:AAGk4quvFD3qRzlZBQ3HxR-3qtFLuZt0nVs"
 
-tasks = [
-    {
-        "image": "https://dummyimage.com/300x100/000/fff&text=AB12",
-        "answer": "AB12"
-    },
-    {
-        "image": "https://dummyimage.com/300x100/000/fff&text=K9LM",
-        "answer": "K9LM"
-    }
-]
+TOTAL_CAPTCHAS = 20000000
 
-users = {}
-stats = {}
+user_data_store = {}
+
+
+def generate_captcha():
+    chars = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(chars, k=4))
+
+
+def menu_keyboard():
+    return ReplyKeyboardMarkup(
+        [["Next", "Withdraw", "Vault"]],
+        resize_keyboard=True
+    )
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    users[user_id] = 0
+    user_data_store[user_id] = {
+        "count": 0,
+        "captcha": generate_captcha()
+    }
 
-    if user_id not in stats:
-        stats[user_id] = 0
+    captcha = user_data_store[user_id]["captcha"]
 
-    await send_task(update)
+    await update.message.reply_text(
+        f"""
+🔐 CAPTCHA TASK
 
-async def send_task(update):
-    user_id = update.effective_user.id
-    index = users[user_id]
+Captcha 1 / {TOTAL_CAPTCHAS}
 
-    if index >= len(tasks):
-        await update.message.reply_text("✅ All tasks completed")
-        return
+Type this captcha:
 
-    task = tasks[index]
-
-    await update.message.reply_photo(
-        photo=task["image"],
-        caption="Type the text shown in the image"
+{captcha}
+""",
+        reply_markup=menu_keyboard()
     )
 
-async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    text = update.message.text.strip()
 
-    if user_id not in users:
-        await update.message.reply_text("Send /start first")
+    if user_id not in user_data_store:
+        await update.message.reply_text(
+            "Send /start first",
+            reply_markup=menu_keyboard()
+        )
         return
 
-    index = users[user_id]
+    data = user_data_store[user_id]
 
-    if index >= len(tasks):
+    if text.lower() == "withdraw":
+        await update.message.reply_text(
+            "💸 Withdraw system coming soon",
+            reply_markup=menu_keyboard()
+        )
         return
 
-    answer = tasks[index]["answer"]
+    if text.lower() == "vault":
+        await update.message.reply_text(
+            f"🏦 Vault\nCompleted: {data['count']} captchas",
+            reply_markup=menu_keyboard()
+        )
+        return
 
-    if update.message.text.upper() == answer:
-        users[user_id] += 1
-        stats[user_id] += 1
+    if text.lower() == "next":
+        data["captcha"] = generate_captcha()
 
-        await update.message.reply_text("✅ Correct")
+        await update.message.reply_text(
+            f"""
+🔐 NEXT CAPTCHA
 
-        await send_task(update)
+Captcha {data['count'] + 1} / {TOTAL_CAPTCHAS}
+
+Type this:
+
+{data['captcha']}
+""",
+            reply_markup=menu_keyboard()
+        )
+        return
+
+    if text.upper() == data["captcha"]:
+        data["count"] += 1
+
+        if data["count"] >= TOTAL_CAPTCHAS:
+            await update.message.reply_text(
+                "✅ All captchas completed!",
+                reply_markup=menu_keyboard()
+            )
+            return
+
+        data["captcha"] = generate_captcha()
+
+        await update.message.reply_text(
+            f"""
+✅ Correct
+
+Captcha {data['count'] + 1} / {TOTAL_CAPTCHAS}
+
+Type this captcha:
+
+{data['captcha']}
+""",
+            reply_markup=menu_keyboard()
+        )
 
     else:
-        await update.message.reply_text("❌ Wrong")
+        await update.message.reply_text(
+            "❌ Wrong captcha. Try again.",
+            reply_markup=menu_keyboard()
+        )
 
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("Access denied")
-        return
 
-    total_users = len(stats)
-
-    text = f"👥 Total Users: {total_users}\n\n"
-
-    for uid, solved in stats.items():
-        text += f"ID: {uid} | Solved: {solved}\n"
-
-    await update.message.reply_text(text)
-
-app = Application.builder().token(TOKEN).build()
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("admin", admin))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("Bot Running...")
-
+print("Bot is running...")
 app.run_polling()
+        
+
+    
+
+    
