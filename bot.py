@@ -3,7 +3,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import random
 import string
 
-TOKEN = "8838766761:AAGk4quvFD3qRzlZBQ3HxR-3qtFLuZt0nVs”
+TOKEN = "8838766761:AAFhyC2n2ssbwVScY53iN8Pt2MzXCdsCLgM”
 
 users = {}
 
